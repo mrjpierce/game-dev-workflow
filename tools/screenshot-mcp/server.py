@@ -24,7 +24,7 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
     "screenshot-server",
-    description="Capture screenshots of Windows windows, even when occluded",
+    instructions="Capture screenshots of Windows windows, even when occluded",
 )
 
 # Win32 constants

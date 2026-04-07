@@ -3,6 +3,10 @@
     "screenshot": {
       "command": "python",
       "args": ["tools/screenshot-mcp/server.py"]
+    },
+    "model-viewer": {
+      "command": "python",
+      "args": ["tools/model-viewer-mcp/server.py"]
     }
   }
 }
