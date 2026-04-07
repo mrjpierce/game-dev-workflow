@@ -9,6 +9,11 @@ import ctypes.wintypes
 import io
 from typing import Any
 
+# Enable per-monitor DPI awareness BEFORE any window operations.
+# Without this, GetWindowRect returns logical (unscaled) sizes
+# but PrintWindow renders at physical (scaled) size, causing cropping.
+ctypes.windll.shcore.SetProcessDpiAwareness(2)
+
 import win32gui
 import win32ui
 import win32con
