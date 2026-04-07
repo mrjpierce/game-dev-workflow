@@ -67,10 +67,22 @@ func _start_file_logging() -> void:
 		push_warning("DebugServer: Could not create telemetry log at %s" % path)
 
 
+const LOG_FLUSH_INTERVAL: float = 1.0  # flush to disk once per second
+var _log_buffer: PackedStringArray = PackedStringArray()
+var _log_flush_timer: float = 0.0
+
+
 func _log_event(event: Dictionary) -> void:
 	if _log_file:
-		_log_file.store_line(JSON.stringify(event))
+		_log_buffer.append(JSON.stringify(event))
+
+
+func _flush_log_buffer() -> void:
+	if _log_file and _log_buffer.size() > 0:
+		for line in _log_buffer:
+			_log_file.store_line(line)
 		_log_file.flush()
+		_log_buffer.clear()
 
 
 func _notification(what: int) -> void:
@@ -80,6 +92,7 @@ func _notification(what: int) -> void:
 
 func _close_file_log() -> void:
 	if _log_file:
+		_flush_log_buffer()
 		var end: Dictionary = {
 			"event": "run_end",
 			"t": Time.get_ticks_msec() / 1000.0,
@@ -95,6 +108,11 @@ func _process(delta: float) -> void:
 	_read_clients()
 	_update_telemetry(delta)
 	_update_replay(delta)
+	# Batch flush log to disk
+	_log_flush_timer += delta
+	if _log_flush_timer >= LOG_FLUSH_INTERVAL:
+		_log_flush_timer = 0.0
+		_flush_log_buffer()
 
 
 # --- Networking ---
