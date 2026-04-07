@@ -19,6 +19,8 @@ This is an autonomous game development project built by a team of AI agents usin
 ```
 game/
 ├── project.godot          # Redot/Godot project config
+├── autoloads/
+│   └── debug_server.gd    # TCP debug server for agent interaction
 ├── scenes/                # .tscn scene files
 ├── scripts/               # .gd script files
 ├── assets/
@@ -93,6 +95,42 @@ Renders 3D models (GLB, GLTF, OBJ, PLY, STL) offline from multiple angles.
 **Use cases:** Inspect 3D assets, validate model orientation, check geometry quality, review models from multiple angles before importing into the game.
 
 **Note:** `model_path` must be an absolute path. Textures are rendered when available.
+
+### Game Bridge (`game-bridge`)
+Connects to the running game via the DebugServer autoload (TCP port 9877). The game must be running with the autoload enabled.
+
+**Actions & Input:**
+| Tool | Description |
+|------|-------------|
+| `game_action(action, pressed, strength, duration)` | Send a single input action (e.g., "jump") |
+| `game_action_sequence(actions)` | Send multiple timed actions as JSON array |
+
+**State Queries:**
+| Tool | Description |
+|------|-------------|
+| `game_query(path, property)` | Query a node or property in the scene tree |
+| `game_query_tree(path, depth)` | Get scene tree structure with classes and positions |
+| `game_set(path, property, value)` | Modify a node property (teleport, set health, etc.) |
+| `game_eval(expression)` | Evaluate a GDScript expression in the current scene |
+
+**Telemetry:**
+| Tool | Description |
+|------|-------------|
+| `game_telemetry_snapshot()` | Current state: FPS, scene, node count, player pos/health |
+| `game_telemetry_history(since, limit)` | Time series of state snapshots (sampled every 0.5s) |
+| `game_telemetry_config(enabled, interval)` | Configure sampling rate |
+
+**Recording & Replay:**
+| Tool | Description |
+|------|-------------|
+| `game_record_start()` | Start recording actions as a replayable macro |
+| `game_record_stop()` | Stop recording, returns action array |
+| `game_replay(actions)` | Replay a recorded macro with original timing |
+| `game_screenshot()` | Internal viewport capture (pixel-perfect, no window dependency) |
+
+**Replay workflow:** Actions sent through the bridge are automatically recorded. Call `game_record_stop()` to get the macro, save it to a file, and pass it to other agents or humans for reproduction. The game auto-records from boot.
+
+**Important:** Nodes that want to appear in telemetry should add themselves to the `"player"` or `"enemies"` groups.
 
 ## GDScript Reference
 

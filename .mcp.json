@@ -7,6 +7,10 @@
     "model-viewer": {
       "command": "python",
       "args": ["tools/model-viewer-mcp/server.py"]
+    },
+    "game-bridge": {
+      "command": "python",
+      "args": ["tools/game-bridge-mcp/server.py"]
     }
   }
 }

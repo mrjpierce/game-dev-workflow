@@ -9,6 +9,10 @@ config/description="An autonomous agent-developed game using Redot Engine"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
+[autoload]
+
+DebugServer="*res://autoloads/debug_server.gd"
+
 [display]
 
 window/size/viewport_width=1280

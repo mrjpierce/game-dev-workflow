@@ -96,10 +96,19 @@ script = ExtResource("1")
 
 ## MCP Tools Available
 
-- **`screenshot_window(title)`** — Capture the running game window to visually verify what you built. Works even when the window is behind others.
-- **`list_windows()`** — Find available windows if you need the exact title.
-- **`view_model(model_path, ...)`** — Render a 3D model file to inspect it before importing into the game.
-- **`inspect_model(model_path)`** — Check mesh stats (vertex count, extents, etc.) for 3D assets.
+**Visual:**
+- **`screenshot_window(title)`** — Capture the game window (works behind other windows).
+- **`view_model(model_path, ...)`** / **`inspect_model(model_path)`** — Render or inspect 3D model files.
+
+**Game Bridge** (requires game running with DebugServer autoload on port 9877):
+- **`game_action(action, duration)`** — Send input actions ("jump", "move_left", etc.). Actions must be defined in the Input Map.
+- **`game_query(path, property)`** — Read any node's properties at runtime (e.g., player position, health).
+- **`game_query_tree(path, depth)`** — Inspect the live scene tree structure.
+- **`game_set(path, property, value)`** — Modify game state for testing (teleport, set health, etc.).
+- **`game_screenshot()`** — Internal viewport capture (pixel-perfect, no window dependency).
+- **`game_telemetry_snapshot()`** — Current FPS, scene, node count, player state.
+
+**Important:** Add player nodes to the `"player"` group and enemies to `"enemies"` for automatic telemetry tracking.
 
 ## Communication
 - When a task is done, report what you built, what files changed, and any concerns

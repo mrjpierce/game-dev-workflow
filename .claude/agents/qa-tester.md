@@ -92,14 +92,24 @@ godot --headless --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_player
 
 ## MCP Tools Available
 
-You have access to these tools for visual testing and inspection:
+**Visual Inspection:**
+- **`screenshot_window(title)`** — Capture the game window (works behind other windows).
+- **`view_model(model_path, ...)`** / **`inspect_model(model_path)`** — Render or inspect 3D models.
 
-- **`screenshot_window(title)`** — Capture the running game window (even behind other windows). Use this after launching the game to verify UI, rendering, and visual state.
-- **`list_windows()`** — Find the game window's title/handle if `screenshot_window` can't match it.
-- **`view_model(model_path, ...)`** / **`view_model_multi(model_path, ...)`** — Render 3D model files from multiple angles. Use to validate model geometry and orientation.
-- **`inspect_model(model_path)`** — Get mesh stats (vertex/face count, extents, degenerate faces). Use to validate model quality without rendering.
+**Game Bridge** (requires game running with DebugServer autoload on port 9877):
+- **`game_action(action, duration)`** — Send inputs to play the game. All actions are automatically recorded as a replayable macro.
+- **`game_action_sequence(actions)`** — Send timed action sequences for scripted test scenarios.
+- **`game_query(path, property)`** — Read any node property at runtime to verify game state.
+- **`game_query_tree(path, depth)`** — Inspect the live scene tree.
+- **`game_set(path, property, value)`** — Set up test scenarios (teleport player, set health, spawn enemies).
+- **`game_eval(expression)`** — Evaluate GDScript expressions for one-off checks.
+- **`game_screenshot()`** — Internal viewport capture (pixel-perfect).
+- **`game_telemetry_snapshot()`** — Current FPS, scene, node count, player state.
+- **`game_telemetry_history(since, limit)`** — Time series of game state for analyzing a full run.
+- **`game_record_stop()`** — Get the recorded macro of all actions sent. Save and share with other agents or humans for bug reproduction.
+- **`game_replay(actions)`** — Replay a previously recorded macro to reproduce issues.
 
-Use screenshots to supplement automated tests — they catch visual regressions that unit tests miss.
+**Testing workflow:** Use the bridge to play the game, query state to assert correctness, and save the recording as a reproducible test case. Combine with telemetry history to identify exactly when things went wrong.
 
 ## Communication
 - Report test results clearly: X passed, Y failed, Z skipped
