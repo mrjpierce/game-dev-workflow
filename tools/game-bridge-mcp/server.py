@@ -265,5 +265,83 @@ def game_replay_status() -> dict:
     return _send_command({"type": "replay_status"})
 
 
+# --- Run Log Files ---
+
+@mcp.tool()
+def game_log_path() -> dict:
+    """
+    Get the file path of the current run's telemetry log (.jsonl).
+    The log contains every telemetry sample and every action from the entire run,
+    persisted to disk. Survives crashes. Use this to analyze a full run after the fact.
+    """
+    return _send_command({"type": "log_path"})
+
+
+@mcp.tool()
+def game_log_read(path: str = "", tail: int = 200) -> dict:
+    """
+    Read a telemetry log file (JSONL). Returns parsed entries.
+    If path is empty, reads the current run's log.
+    Use tail to limit to the last N entries (default 200).
+
+    Args:
+        path: Absolute path to a .jsonl log file. Empty = current run.
+        tail: Number of entries to return from the end of the file (default 200).
+    """
+    if not path:
+        result = _send_command({"type": "log_path"})
+        if not result.get("ok"):
+            return result
+        path = result["path"]
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        entries = []
+        for line in lines:
+            line = line.strip()
+            if line:
+                entries.append(json.loads(line))
+        if tail and len(entries) > tail:
+            entries = entries[-tail:]
+        return {"ok": True, "path": path, "entries": entries, "total_lines": len(lines)}
+    except FileNotFoundError:
+        return {"ok": False, "error": f"File not found: {path}"}
+    except Exception as e:
+        return {"ok": False, "error": f"Error reading log: {e}"}
+
+
+@mcp.tool()
+def game_log_list() -> dict:
+    """
+    List all telemetry log files from previous runs.
+    Logs are stored in the Godot user data directory under telemetry/.
+    """
+    import glob
+    import os
+
+    # Godot's user:// maps to %APPDATA%/Godot/app_userdata/<project_name>/
+    # or %APPDATA%/<project_name>/ depending on config
+    appdata = os.environ.get("APPDATA", "")
+    search_paths = [
+        os.path.join(appdata, "Godot", "app_userdata", "GameDevWorkflow", "telemetry"),
+        os.path.join(appdata, "GameDevWorkflow", "telemetry"),
+    ]
+
+    logs = []
+    for search in search_paths:
+        for f in glob.glob(os.path.join(search, "run_*.jsonl")):
+            stat = os.stat(f)
+            logs.append({
+                "path": f,
+                "filename": os.path.basename(f),
+                "size_kb": round(stat.st_size / 1024, 1),
+                "modified": stat.st_mtime,
+            })
+
+    logs.sort(key=lambda x: x["modified"], reverse=True)
+    return {"ok": True, "logs": logs}
+
+
 if __name__ == "__main__":
     mcp.run()

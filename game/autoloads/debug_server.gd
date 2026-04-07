@@ -8,6 +8,7 @@ extends Node
 
 const PORT: int = 9877
 const TELEMETRY_INTERVAL: float = 0.5  # seconds between telemetry samples
+const TELEMETRY_DIR: String = "user://telemetry"
 
 var _server: TCPServer = TCPServer.new()
 var _clients: Array[StreamPeerTCP] = []
@@ -23,6 +24,10 @@ var _telemetry_enabled: bool = true
 var _telemetry_log: Array[Dictionary] = []
 var _telemetry_timer: float = 0.0
 
+# File logging — writes every telemetry sample and action to a .jsonl file
+var _log_file: FileAccess = null
+var _run_id: String = ""
+
 # Replay
 var _replaying: bool = false
 var _replay_actions: Array = []
@@ -36,8 +41,55 @@ func _ready() -> void:
 		push_warning("DebugServer: Failed to listen on port %d (error %d)" % [PORT, err])
 		return
 	print("DebugServer: Listening on 127.0.0.1:%d" % PORT)
-	# Start recording by default so we always have a replay log
 	_start_recording()
+	_start_file_logging()
+
+
+func _start_file_logging() -> void:
+	# Create telemetry directory if needed
+	DirAccess.make_dir_recursive_absolute(TELEMETRY_DIR)
+	# Timestamped run file: telemetry/run_20260406_143022.jsonl
+	_run_id = Time.get_datetime_string_from_system().replace("-", "").replace(":", "").replace("T", "_")
+	var path: String = TELEMETRY_DIR + "/run_" + _run_id + ".jsonl"
+	_log_file = FileAccess.open(path, FileAccess.WRITE)
+	if _log_file:
+		var meta: Dictionary = {
+			"event": "run_start",
+			"t": 0.0,
+			"run_id": _run_id,
+			"project": ProjectSettings.get_setting("application/config/name", ""),
+			"scene": get_tree().current_scene.scene_file_path if get_tree().current_scene else "",
+		}
+		_log_file.store_line(JSON.stringify(meta))
+		_log_file.flush()
+		# Print the resolved OS path so agents can find it
+		var os_path: String = ProjectSettings.globalize_path(path)
+		print("DebugServer: Telemetry log -> %s" % os_path)
+	else:
+		push_warning("DebugServer: Could not create telemetry log at %s" % path)
+
+
+func _log_event(event: Dictionary) -> void:
+	if _log_file:
+		_log_file.store_line(JSON.stringify(event))
+		_log_file.flush()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
+		_close_file_log()
+
+
+func _close_file_log() -> void:
+	if _log_file:
+		var end: Dictionary = {
+			"event": "run_end",
+			"t": Time.get_ticks_msec() / 1000.0,
+			"run_id": _run_id,
+		}
+		_log_file.store_line(JSON.stringify(end))
+		_log_file.flush()
+		_log_file = null
 
 
 func _process(delta: float) -> void:
@@ -136,6 +188,11 @@ func _handle_command(json_str: String) -> Dictionary:
 			return _cmd_replay(cmd)
 		"replay_status":
 			return {"ok": true, "replaying": _replaying, "index": _replay_index, "total": _replay_actions.size()}
+		"log_path":
+			if _log_file:
+				var path: String = TELEMETRY_DIR + "/run_" + _run_id + ".jsonl"
+				return {"ok": true, "path": ProjectSettings.globalize_path(path), "run_id": _run_id}
+			return {"ok": false, "error": "No log file active"}
 		_:
 			return {"ok": false, "error": "Unknown command type: %s" % cmd["type"]}
 
@@ -171,15 +228,21 @@ func _cmd_action(cmd: Dictionary) -> Dictionary:
 		_release_after(action_name, duration)
 
 	# Record the action
+	var elapsed: float = (Time.get_ticks_msec() - _recording_start_time) / 1000.0
+	var action_record: Dictionary = {
+		"t": elapsed,
+		"action": action_name,
+		"pressed": pressed,
+		"strength": strength,
+		"duration": duration,
+	}
 	if _recording:
-		var elapsed: float = (Time.get_ticks_msec() - _recording_start_time) / 1000.0
-		_recorded_actions.append({
-			"t": elapsed,
-			"action": action_name,
-			"pressed": pressed,
-			"strength": strength,
-			"duration": duration,
-		})
+		_recorded_actions.append(action_record)
+
+	# Log to file
+	var log_entry: Dictionary = action_record.duplicate()
+	log_entry["event"] = "action"
+	_log_event(log_entry)
 
 	return {"ok": true, "action": action_name, "pressed": pressed}
 
@@ -340,8 +403,13 @@ func _update_telemetry(delta: float) -> void:
 	_telemetry_timer += delta
 	if _telemetry_timer >= TELEMETRY_INTERVAL:
 		_telemetry_timer = 0.0
-		_telemetry_log.append(_capture_telemetry())
-		# Cap the log to prevent unbounded memory growth
+		var snapshot: Dictionary = _capture_telemetry()
+		_telemetry_log.append(snapshot)
+		# Log to file
+		var log_entry: Dictionary = snapshot.duplicate()
+		log_entry["event"] = "telemetry"
+		_log_event(log_entry)
+		# Cap the in-memory log to prevent unbounded growth
 		if _telemetry_log.size() > 10000:
 			_telemetry_log = _telemetry_log.slice(5000)
 
