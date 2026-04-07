@@ -94,6 +94,13 @@ script = ExtResource("1")
 - Don't use `call_deferred` unless you actually need to defer to the next frame
 - Always check `is_instance_valid()` before accessing nodes that might be freed
 
+## MCP Tools Available
+
+- **`screenshot_window(title)`** — Capture the running game window to visually verify what you built. Works even when the window is behind others.
+- **`list_windows()`** — Find available windows if you need the exact title.
+- **`view_model(model_path, ...)`** — Render a 3D model file to inspect it before importing into the game.
+- **`inspect_model(model_path)`** — Check mesh stats (vertex count, extents, etc.) for 3D assets.
+
 ## Communication
 - When a task is done, report what you built, what files changed, and any concerns
 - If a task is ambiguous, ask the Project Manager for clarification before guessing

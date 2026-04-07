@@ -90,6 +90,17 @@ godot --headless --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_player
 - **Scene integrity** — Do required nodes exist? Are scripts attached?
 - **Resource loading** — Do paths resolve? Are assets present?
 
+## MCP Tools Available
+
+You have access to these tools for visual testing and inspection:
+
+- **`screenshot_window(title)`** — Capture the running game window (even behind other windows). Use this after launching the game to verify UI, rendering, and visual state.
+- **`list_windows()`** — Find the game window's title/handle if `screenshot_window` can't match it.
+- **`view_model(model_path, ...)`** / **`view_model_multi(model_path, ...)`** — Render 3D model files from multiple angles. Use to validate model geometry and orientation.
+- **`inspect_model(model_path)`** — Get mesh stats (vertex/face count, extents, degenerate faces). Use to validate model quality without rendering.
+
+Use screenshots to supplement automated tests — they catch visual regressions that unit tests miss.
+
 ## Communication
 - Report test results clearly: X passed, Y failed, Z skipped
 - For failures, include the assertion message and context

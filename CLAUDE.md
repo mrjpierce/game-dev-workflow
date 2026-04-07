@@ -65,6 +65,35 @@ game/
 5. **Review** — Team reviews, iterates, merges
 6. **Repeat**
 
+## MCP Tools
+
+Two custom MCP servers are available to all agents via `.mcp.json`:
+
+### Screenshot Server (`screenshot`)
+Captures Windows application windows, even when behind other windows.
+
+| Tool | Description |
+|------|-------------|
+| `list_windows()` | List all visible windows with hwnd, title, process, size |
+| `screenshot_window(title)` | Capture by title (partial match, case-insensitive) |
+| `screenshot_window_by_hwnd(hwnd)` | Capture by exact window handle |
+
+**Use cases:** Capture the running game window for visual inspection, verify UI layouts, debug rendering issues, take before/after screenshots.
+
+### Model Viewer (`model-viewer`)
+Renders 3D models (GLB, GLTF, OBJ, PLY, STL) offline from multiple angles.
+
+| Tool | Description |
+|------|-------------|
+| `view_model(model_path, angle, elevation, show_axes, show_grid)` | Single-angle render |
+| `view_model_multi(model_path, angles, elevation, show_axes, show_grid, labels)` | Multi-angle composite grid |
+| `view_model_turntable(model_path, frames, elevation, show_axes)` | 360° turntable strip |
+| `inspect_model(model_path)` | Geometry stats (verts, faces, extents, elongation, watertight) |
+
+**Use cases:** Inspect 3D assets, validate model orientation, check geometry quality, review models from multiple angles before importing into the game.
+
+**Note:** `model_path` must be an absolute path. Textures are rendered when available.
+
 ## GDScript Reference
 
 All agents writing GDScript MUST read `.claude/agents/gdscript-reference.md` before generating code. GDScript resembles Python but has critical differences that LLMs routinely get wrong (boolean capitalization, string formatting, imports, signal syntax, etc.). The reference file documents every common pitfall.

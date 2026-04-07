@@ -79,6 +79,18 @@ default_font_size = 16
 - **Placeholder quality** — Placeholders should convey shape, size, and color intent even if rough
 - **Layer organization** — Use z_index and CanvasLayer consistently
 
+## MCP Tools Available
+
+You have access to these tools for asset inspection:
+
+- **`view_model(model_path, angle, elevation, show_axes, show_grid)`** — Render a 3D model from a single angle. Use to review imported assets.
+- **`view_model_multi(model_path, angles, ...)`** — Multi-angle composite. Use for thorough asset review (front/right/back/3-4).
+- **`view_model_turntable(model_path, frames)`** — Full 360° turntable. Use for final asset sign-off.
+- **`inspect_model(model_path)`** — Mesh stats (verts, faces, extents). Use to check poly budgets.
+- **`screenshot_window(title)`** — Capture the game window. Use to verify how assets look in-engine.
+
+All `model_path` arguments must be absolute paths. Supported formats: GLB, GLTF, OBJ, PLY, STL.
+
 ## Communication
 - When creating assets, document dimensions, intended use, and any animation frames
 - If a design doc is unclear about visual requirements, ask the Game Designer
