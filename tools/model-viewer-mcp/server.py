@@ -41,7 +41,7 @@ def _build_scene(
     mesh: trimesh.Trimesh,
     show_axes: bool = False,
     show_grid: bool = False,
-    use_textures: bool = False,
+    use_textures: bool = True,
 ) -> pyrender.Scene:
     """Build a pyrender scene with lighting and optional overlays."""
     scene = pyrender.Scene(
