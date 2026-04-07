@@ -21,6 +21,7 @@ var _recorded_actions: Array[Dictionary] = []
 # Telemetry — captured every tick
 var _telemetry_enabled: bool = true
 var _telemetry_log: Array[Dictionary] = []
+var _tick: int = 0
 
 # File logging — writes every telemetry sample and action to a .jsonl file
 var _log_file: FileAccess = null
@@ -426,6 +427,7 @@ func _cmd_telemetry_config(cmd: Dictionary) -> Dictionary:
 func _update_telemetry(_delta: float) -> void:
 	if not _telemetry_enabled:
 		return
+	_tick += 1
 	# Capture full state every tick
 	var actions_this_tick: Array[Dictionary] = _pending_actions.duplicate()
 	_pending_actions.clear()
@@ -450,6 +452,7 @@ func _capture_full_state(actions: Array[Dictionary] = []) -> Dictionary:
 
 	# --- meta: engine and performance ---
 	var meta: Dictionary = {
+		"tick": _tick,
 		"t": t,
 		"fps": Engine.get_frames_per_second(),
 		"frame": Engine.get_frames_drawn(),
