@@ -210,15 +210,15 @@ def game_telemetry_clear() -> dict:
 
 
 @mcp.tool()
-def game_telemetry_config(enabled: bool = True, interval: float = 0.5) -> dict:
+def game_telemetry_config(enabled: bool = True) -> dict:
     """
-    Configure telemetry collection.
+    Enable or disable telemetry collection. When enabled, full game state
+    is captured every tick (every _process frame).
 
     Args:
-        enabled: Turn telemetry sampling on/off
-        interval: Seconds between telemetry samples (default 0.5)
+        enabled: Turn telemetry on/off
     """
-    return _send_command({"type": "telemetry_config", "enabled": enabled, "interval": interval})
+    return _send_command({"type": "telemetry_config", "enabled": enabled})
 
 
 # --- Recording & Replay ---

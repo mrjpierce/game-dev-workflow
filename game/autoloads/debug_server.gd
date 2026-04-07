@@ -7,7 +7,6 @@ extends Node
 ## Strip from release builds via feature tags.
 
 const PORT: int = 9877
-const TELEMETRY_INTERVAL: float = 0.5  # seconds between telemetry samples
 const TELEMETRY_DIR: String = "user://telemetry"
 
 var _server: TCPServer = TCPServer.new()
@@ -19,10 +18,9 @@ var _recording: bool = false
 var _recording_start_time: float = 0.0
 var _recorded_actions: Array[Dictionary] = []
 
-# Telemetry
+# Telemetry — captured every tick
 var _telemetry_enabled: bool = true
 var _telemetry_log: Array[Dictionary] = []
-var _telemetry_timer: float = 0.0
 
 # File logging — writes every telemetry sample and action to a .jsonl file
 var _log_file: FileAccess = null
@@ -404,26 +402,21 @@ func _cmd_telemetry_history(cmd: Dictionary) -> Dictionary:
 func _cmd_telemetry_config(cmd: Dictionary) -> Dictionary:
 	if cmd.has("enabled"):
 		_telemetry_enabled = cmd["enabled"]
-	if cmd.has("interval"):
-		TELEMETRY_INTERVAL = cmd["interval"]
-	return {"ok": true, "enabled": _telemetry_enabled, "interval": TELEMETRY_INTERVAL}
+	return {"ok": true, "enabled": _telemetry_enabled, "rate": "every_tick"}
 
 
-func _update_telemetry(delta: float) -> void:
+func _update_telemetry(_delta: float) -> void:
 	if not _telemetry_enabled:
 		return
-	_telemetry_timer += delta
-	if _telemetry_timer >= TELEMETRY_INTERVAL:
-		_telemetry_timer = 0.0
-		# Collect pending actions since last tick
-		var actions_this_tick: Array[Dictionary] = _pending_actions.duplicate()
-		_pending_actions.clear()
-		var snapshot: Dictionary = _capture_full_state(actions_this_tick)
-		_telemetry_log.append(snapshot)
-		_log_event(snapshot)
-		# Cap the in-memory log to prevent unbounded growth
-		if _telemetry_log.size() > 10000:
-			_telemetry_log = _telemetry_log.slice(5000)
+	# Capture full state every tick
+	var actions_this_tick: Array[Dictionary] = _pending_actions.duplicate()
+	_pending_actions.clear()
+	var snapshot: Dictionary = _capture_full_state(actions_this_tick)
+	_telemetry_log.append(snapshot)
+	_log_event(snapshot)
+	# Cap the in-memory log to prevent unbounded growth
+	if _telemetry_log.size() > 10000:
+		_telemetry_log = _telemetry_log.slice(5000)
 
 
 func _capture_full_state(actions: Array[Dictionary] = []) -> Dictionary:
