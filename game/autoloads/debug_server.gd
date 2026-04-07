@@ -239,11 +239,8 @@ func _cmd_action(cmd: Dictionary) -> Dictionary:
 	if _recording:
 		_recorded_actions.append(action_record)
 
-	# Log to file — include full game state with every action
-	var log_entry: Dictionary = action_record.duplicate()
-	log_entry["event"] = "action"
-	log_entry["state"] = _capture_telemetry()
-	_log_event(log_entry)
+	# Queue for next telemetry tick — actions are embedded in the full state snapshot
+	_pending_actions.append(action_record)
 
 	return {"ok": true, "action": action_name, "pressed": pressed}
 
@@ -343,7 +340,7 @@ func _cmd_set(cmd: Dictionary) -> Dictionary:
 		"property": property,
 		"old": old_value,
 		"new": new_value,
-		"state": _capture_telemetry(),
+		"state": _capture_full_state(),
 	})
 
 	return {"ok": true, "path": path, "property": property, "value": new_value}
@@ -389,7 +386,7 @@ func _cmd_screenshot(_cmd: Dictionary) -> Dictionary:
 # --- Telemetry ---
 
 func _cmd_telemetry_snapshot() -> Dictionary:
-	return {"ok": true, "snapshot": _capture_telemetry()}
+	return {"ok": true, "snapshot": _capture_full_state()}
 
 
 func _cmd_telemetry_history(cmd: Dictionary) -> Dictionary:
@@ -418,47 +415,169 @@ func _update_telemetry(delta: float) -> void:
 	_telemetry_timer += delta
 	if _telemetry_timer >= TELEMETRY_INTERVAL:
 		_telemetry_timer = 0.0
-		var snapshot: Dictionary = _capture_telemetry()
+		# Collect pending actions since last tick
+		var actions_this_tick: Array[Dictionary] = _pending_actions.duplicate()
+		_pending_actions.clear()
+		var snapshot: Dictionary = _capture_full_state(actions_this_tick)
 		_telemetry_log.append(snapshot)
-		# Log to file
-		var log_entry: Dictionary = snapshot.duplicate()
-		log_entry["event"] = "telemetry"
-		_log_event(log_entry)
+		_log_event(snapshot)
 		# Cap the in-memory log to prevent unbounded growth
 		if _telemetry_log.size() > 10000:
 			_telemetry_log = _telemetry_log.slice(5000)
 
 
-func _capture_telemetry() -> Dictionary:
-	var snapshot: Dictionary = {
-		"t": Time.get_ticks_msec() / 1000.0,
+func _capture_full_state(actions: Array[Dictionary] = []) -> Dictionary:
+	## Serialize the entire game state into a single JSON-safe dictionary.
+	## This is THE telemetry record — a complete picture of one tick.
+	##
+	## Four top-level keys:
+	##   meta    — engine/performance data (fps, frame, delta, timing)
+	##   state   — full serialized game state (entire scene tree + groups)
+	##   input   — actions dispatched this tick + currently held inputs
+	##   logs    — game log messages emitted this tick (errors, warnings, prints)
+	var t: float = Time.get_ticks_msec() / 1000.0
+
+	# --- meta: engine and performance ---
+	var meta: Dictionary = {
+		"t": t,
 		"fps": Engine.get_frames_per_second(),
 		"frame": Engine.get_frames_drawn(),
-		"scene": get_tree().current_scene.scene_file_path if get_tree().current_scene else "",
+		"delta": get_process_delta_time(),
+		"physics_ticks": Engine.physics_ticks_per_second,
+		"time_scale": Engine.time_scale,
 		"node_count": get_tree().get_node_count(),
+		"scene": get_tree().current_scene.scene_file_path if get_tree().current_scene else "",
 	}
 
-	# Try to find common game state
+	# --- state: full game state ---
+	var game_state: Dictionary = {
+		"scene_tree": {},
+		"groups": {},
+	}
+
 	var scene: Node = get_tree().current_scene
 	if scene:
-		# Look for a player node
-		var players: Array[Node] = get_tree().get_nodes_in_group("player")
-		if players.size() > 0:
-			var player: Node = players[0]
-			if player is Node2D:
-				snapshot["player_position"] = _serialize(player.position)
-			elif player is Node3D:
-				snapshot["player_position"] = _serialize(player.position)
-			if "health" in player:
-				snapshot["player_health"] = player.health
-			if "velocity" in player:
-				snapshot["player_velocity"] = _serialize(player.velocity)
+		game_state["scene_tree"] = _serialize_node_recursive(scene)
 
-		# Enemy count
-		var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-		snapshot["enemy_count"] = enemies.size()
+	for group_name in _tracked_groups:
+		var members: Array[Node] = get_tree().get_nodes_in_group(group_name)
+		var group_data: Array[Dictionary] = []
+		for node in members:
+			group_data.append(_serialize_node_state(node))
+		game_state["groups"][group_name] = group_data
 
-	return snapshot
+	# --- input: actions and held state ---
+	var input: Dictionary = {
+		"actions": actions,
+		"held": {},
+	}
+
+	for action in InputMap.get_actions():
+		var a: String = str(action)
+		if not a.begins_with("ui_") and Input.is_action_pressed(a):
+			input["held"][a] = Input.get_action_strength(a)
+
+	# --- logs: buffered log messages ---
+	var logs: Array[Dictionary] = _pending_logs.duplicate()
+	_pending_logs.clear()
+
+	return {
+		"event": "tick",
+		"meta": meta,
+		"state": game_state,
+		"input": input,
+		"logs": logs,
+	}
+
+
+## Buffered log messages captured between ticks.
+var _pending_logs: Array[Dictionary] = []
+
+
+## Call this from anywhere in the game to attach a log to the current tick.
+## Example: DebugServer.log_message("Player took damage", {"amount": 25, "source": "enemy_01"})
+func log_message(message: String, data: Dictionary = {}) -> void:
+	_pending_logs.append({
+		"t": Time.get_ticks_msec() / 1000.0,
+		"message": message,
+		"data": data,
+	})
+
+
+## Groups to include in telemetry. Agents/developers add to this list.
+var _tracked_groups: Array[String] = ["player", "enemies", "collectibles", "projectiles", "interactables"]
+
+## Actions that happened between telemetry ticks, flushed each tick.
+var _pending_actions: Array[Dictionary] = []
+
+
+func _serialize_node_state(node: Node) -> Dictionary:
+	## Serialize a single node's exported/gameplay-relevant properties.
+	var data: Dictionary = {
+		"name": node.name,
+		"class": node.get_class(),
+		"path": str(node.get_path()),
+	}
+
+	# Position (works for Node2D and Node3D)
+	if node is Node2D:
+		data["position"] = _serialize(node.position)
+		data["global_position"] = _serialize(node.global_position)
+		data["rotation"] = node.rotation
+		data["scale"] = _serialize(node.scale)
+		data["visible"] = node.visible
+	elif node is Node3D:
+		data["position"] = _serialize(node.position)
+		data["global_position"] = _serialize(node.global_position)
+		data["rotation"] = _serialize(node.rotation)
+		data["scale"] = _serialize(node.scale)
+		data["visible"] = node.visible
+
+	# Velocity (CharacterBody2D/3D, RigidBody2D/3D)
+	if "velocity" in node:
+		data["velocity"] = _serialize(node.velocity)
+	if node is CharacterBody2D or node is CharacterBody3D:
+		data["is_on_floor"] = node.is_on_floor()
+		data["is_on_wall"] = node.is_on_wall()
+
+	# All exported properties — this captures game-specific state
+	for prop in node.get_property_list():
+		if prop["usage"] & PROPERTY_USAGE_STORAGE and prop["usage"] & PROPERTY_USAGE_EDITOR:
+			var prop_name: String = prop["name"]
+			# Skip transform/position props we already captured above
+			if prop_name in ["position", "global_position", "rotation", "scale", "visible"]:
+				continue
+			# Skip internal/noisy properties
+			if prop_name.begins_with("_") or prop_name in ["script", "process_mode", "process_priority", "process_thread_group"]:
+				continue
+			var val = node.get(prop_name)
+			# Skip null, callables, objects that aren't resources
+			if val == null:
+				continue
+			if val is Callable or val is Signal:
+				continue
+			if val is Object and not val is Resource:
+				continue
+			data[prop_name] = _serialize(val)
+
+	return data
+
+
+func _serialize_node_recursive(node: Node, max_depth: int = 10) -> Dictionary:
+	## Recursively serialize a node and all its children.
+	var data: Dictionary = _serialize_node_state(node)
+
+	if max_depth > 0 and node.get_child_count() > 0:
+		var children: Array[Dictionary] = []
+		for child in node.get_children():
+			# Skip the DebugServer itself
+			if child == self:
+				continue
+			children.append(_serialize_node_recursive(child, max_depth - 1))
+		if children.size() > 0:
+			data["children"] = children
+
+	return data
 
 
 # --- Recording ---
