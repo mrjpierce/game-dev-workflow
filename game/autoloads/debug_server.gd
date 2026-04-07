@@ -239,9 +239,10 @@ func _cmd_action(cmd: Dictionary) -> Dictionary:
 	if _recording:
 		_recorded_actions.append(action_record)
 
-	# Log to file
+	# Log to file — include full game state with every action
 	var log_entry: Dictionary = action_record.duplicate()
 	log_entry["event"] = "action"
+	log_entry["state"] = _capture_telemetry()
 	_log_event(log_entry)
 
 	return {"ok": true, "action": action_name, "pressed": pressed}
@@ -330,8 +331,22 @@ func _cmd_set(cmd: Dictionary) -> Dictionary:
 	var current = node.get(property)
 	value = _deserialize(value, current)
 
+	var old_value = _serialize(current)
 	node.set(property, value)
-	return {"ok": true, "path": path, "property": property, "value": _serialize(node.get(property))}
+	var new_value = _serialize(node.get(property))
+
+	# Log state mutation
+	_log_event({
+		"event": "set",
+		"t": Time.get_ticks_msec() / 1000.0,
+		"path": path,
+		"property": property,
+		"old": old_value,
+		"new": new_value,
+		"state": _capture_telemetry(),
+	})
+
+	return {"ok": true, "path": path, "property": property, "value": new_value}
 
 
 func _cmd_eval(cmd: Dictionary) -> Dictionary:
