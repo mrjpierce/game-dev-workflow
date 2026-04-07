@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "screenshot": {
+      "command": "python",
+      "args": ["tools/screenshot-mcp/server.py"]
+    }
+  }
+}
