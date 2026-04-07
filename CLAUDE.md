@@ -130,7 +130,10 @@ Connects to the running game via the DebugServer autoload (TCP port 9877). The g
 
 **Replay workflow:** Actions sent through the bridge are automatically recorded. Call `game_record_stop()` to get the macro, save it to a file, and pass it to other agents or humans for reproduction. The game auto-records from boot.
 
-**Important:** Nodes that want to appear in telemetry should add themselves to the `"player"` or `"enemies"` groups.
+**Integration requirements:**
+- All gameplay input actions must be defined in `project.godot`'s `[input]` section — the bridge sends actions by name, not raw keys.
+- Player nodes must be in the `"player"` group and enemies in the `"enemies"` group for automatic telemetry.
+- Gameplay state (health, score, current_state, etc.) should be simple `var` properties on nodes so the bridge can read them via `game_query`.
 
 ## GDScript Reference
 

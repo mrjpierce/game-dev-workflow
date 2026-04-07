@@ -108,7 +108,29 @@ script = ExtResource("1")
 - **`game_screenshot()`** — Internal viewport capture (pixel-perfect, no window dependency).
 - **`game_telemetry_snapshot()`** — Current FPS, scene, node count, player state.
 
-**Important:** Add player nodes to the `"player"` group and enemies to `"enemies"` for automatic telemetry tracking.
+**Integration requirements for the Game Bridge:**
+
+1. **Define input actions in `project.godot`** — The bridge sends actions by name via the Input Map. Every player action must be registered:
+   ```ini
+   [input]
+   move_left={
+   "deadzone": 0.2,
+   "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":65,"physical_keycode":0,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)]
+   }
+   ```
+   At minimum, define all gameplay actions (movement, jump, attack, interact, etc.) even if keys aren't final — the bridge uses action names, not key codes.
+
+2. **Add nodes to groups for telemetry** — The DebugServer auto-detects:
+   - `"player"` group → tracks position, health, velocity
+   - `"enemies"` group → tracks count
+   
+3. **Expose key state as properties** — The bridge can read any property via `game_query`. Make gameplay state accessible:
+   ```gdscript
+   var health: int = 100          # readable via game_query
+   var is_grounded: bool = false  # readable via game_query
+   var current_state: String = "idle"  # readable via game_query
+   ```
+   Don't hide state behind getters unless necessary — simple `var` properties are bridge-friendly.
 
 ## Communication
 - When a task is done, report what you built, what files changed, and any concerns
