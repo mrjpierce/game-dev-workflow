@@ -96,10 +96,9 @@ Renders 3D models (GLB, GLTF, OBJ, PLY, STL) offline from multiple angles.
 
 **Note:** `model_path` must be an absolute path. Textures are rendered when available.
 
-### Media Generation (`media`)
-Generates 2D images (Stability AI) and 3D models (Meshy AI). Requires API keys in `.env` (see `.env.example`).
+### Image Generation (`media`)
+Generates 2D images via Stability AI. Requires `STABILITY_API_KEY` in `.env` (see `.env.example`).
 
-**Image Generation (Stability AI):**
 | Tool | Description |
 |------|-------------|
 | `generate_image(prompt, output_path, ...)` | General-purpose image generation with full control |
@@ -107,13 +106,12 @@ Generates 2D images (Stability AI) and 3D models (Meshy AI). Requires API keys i
 | `generate_texture(prompt, output_path, seamless)` | Tileable texture/material |
 | `generate_concept_art(prompt, output_path, aspect_ratio)` | Concept art for design exploration |
 
-**3D Model Generation (Meshy AI):**
-| Tool | Description |
-|------|-------------|
-| `generate_3d_model(image_path, output_path, polycount, texture, remesh)` | Image-to-3D model (2-10 min async) |
-| `check_meshy_task(task_id)` | Check status of a running Meshy task |
+**Note:** All output paths must be absolute.
 
-**Note:** All output paths must be absolute. Meshy generation is slow (2-10 min) — plan accordingly.
+### 3D Generation (Meshy Skill)
+The official `meshy-3d-agent` skill is installed for all 3D work. Requires `MESHY_API_KEY` (the skill will prompt for it on first use).
+
+Capabilities: text-to-3D, image-to-3D, retexturing, remeshing, auto-rigging, animation, 3D printing.
 
 ### Game Bridge (`game-bridge`)
 Connects to the running game via the DebugServer autoload (TCP port 9877). The game must be running with the autoload enabled.

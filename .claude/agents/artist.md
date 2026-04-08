@@ -81,13 +81,14 @@ default_font_size = 16
 
 ## MCP Tools Available
 
-**Asset Creation (requires API keys in .env):**
+**2D Asset Creation (Stability AI, requires STABILITY_API_KEY in .env):**
 - **`generate_sprite(prompt, output_path, style)`** — Generate a game sprite (pixel-art, digital-art, anime, etc.). Centered, clean edges, solid background.
 - **`generate_texture(prompt, output_path, seamless)`** — Generate a tileable texture/material.
 - **`generate_concept_art(prompt, output_path, aspect_ratio)`** — Generate concept art for design exploration.
 - **`generate_image(prompt, output_path, ...)`** — Full-control image generation with negative prompts, aspect ratio, and style presets.
-- **`generate_3d_model(image_path, output_path, polycount)`** — Convert a reference image into a 3D GLB model (takes 2-10 min).
-- **`check_meshy_task(task_id)`** — Check status of a 3D generation task.
+
+**3D Asset Creation (Meshy Skill):**
+The official `meshy-3d-agent` skill handles all 3D work: text-to-3D, image-to-3D, retexturing, remeshing, auto-rigging, and animation. Just describe what you need in natural language.
 
 **Asset Inspection:**
 - **`view_model(model_path, angle, elevation, show_axes, show_grid)`** — Render a 3D model from a single angle.

@@ -1,15 +1,12 @@
 """
-MCP server for AI-powered media asset creation.
-Wraps Stability AI (image generation) and Meshy AI (image-to-3D model).
+MCP server for AI-powered 2D image generation via Stability AI.
+3D model generation is handled by the official Meshy skill (meshy-3d-agent).
 
-Requires API keys in a .env file at the project root:
+Requires API key in a .env file at the project root:
   STABILITY_API_KEY=sk-...
-  MESHY_API_KEY=msy_...
 """
 
-import base64
 import os
-import time
 from typing import Any
 
 import httpx
@@ -22,11 +19,10 @@ load_dotenv(os.path.join(_project_root, ".env"))
 
 mcp = FastMCP(
     "media",
-    instructions="Generate 2D images via Stability AI and 3D models via Meshy AI",
+    instructions="Generate 2D images via Stability AI. For 3D models, use the Meshy skill instead.",
 )
 
 STABILITY_API_URL = "https://api.stability.ai/v2beta/stable-image/generate/core"
-MESHY_API_BASE = "https://api.meshy.ai/openapi/v1/image-to-3d"
 
 
 def _get_key(name: str) -> str:
@@ -34,11 +30,6 @@ def _get_key(name: str) -> str:
     if not key:
         raise ValueError(f"{name} not set. Add it to .env in the project root.")
     return key
-
-
-# =============================================================================
-# Stability AI — Image Generation
-# =============================================================================
 
 @mcp.tool()
 def generate_image(
@@ -197,170 +188,6 @@ def generate_concept_art(
         style_preset="fantasy-art",
     )
 
-
-# =============================================================================
-# Meshy AI — Image to 3D Model
-# =============================================================================
-
-def _image_to_data_uri(image_path: str) -> str:
-    with open(image_path, "rb") as f:
-        image_data = base64.b64encode(f.read()).decode("utf-8")
-    ext = os.path.splitext(image_path)[1].lower()
-    mime = "image/png" if ext == ".png" else "image/jpeg"
-    return f"data:{mime};base64,{image_data}"
-
-
-def _poll_meshy_task(api_key: str, task_id: str, timeout: int = 600) -> dict:
-    headers = {"Authorization": f"Bearer {api_key}"}
-    start = time.time()
-
-    while time.time() - start < timeout:
-        response = httpx.get(
-            f"{MESHY_API_BASE}/{task_id}",
-            headers=headers,
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        task = response.json()
-        status = task.get("status")
-
-        if status == "SUCCEEDED":
-            return task
-        elif status == "FAILED":
-            error_msg = task.get("task_error", {}).get("message", "unknown")
-            raise RuntimeError(f"Meshy task failed: {error_msg}")
-
-        time.sleep(5)
-
-    raise TimeoutError(f"Meshy task {task_id} timed out after {timeout}s")
-
-
-@mcp.tool()
-def generate_3d_model(
-    image_path: str,
-    output_path: str,
-    polycount: int = 30000,
-    texture: bool = True,
-    remesh: bool = True,
-) -> dict:
-    """
-    Generate a 3D model from a reference image using Meshy AI (image-to-3D).
-    This is an async operation that typically takes 2-10 minutes.
-
-    Args:
-        image_path: Absolute path to the input image (PNG or JPG)
-        output_path: Absolute path for the output GLB file (e.g., "C:/.../model.glb")
-        polycount: Target polygon count (default 30000)
-        texture: Generate PBR textures (default True)
-        remesh: Optimize mesh topology (default True)
-    """
-    api_key = _get_key("MESHY_API_KEY")
-
-    if not os.path.isabs(image_path):
-        return {"ok": False, "error": "image_path must be an absolute path"}
-    if not os.path.isabs(output_path):
-        return {"ok": False, "error": "output_path must be an absolute path"}
-    if not os.path.exists(image_path):
-        return {"ok": False, "error": f"Image not found: {image_path}"}
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-    data_uri = _image_to_data_uri(image_path)
-
-    # Create task
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    response = httpx.post(
-        MESHY_API_BASE,
-        headers=headers,
-        json={
-            "image_url": data_uri,
-            "ai_model": "meshy-6",
-            "enable_pbr": texture,
-            "should_remesh": remesh,
-            "should_texture": texture,
-            "target_formats": ["glb"],
-            "topology": "triangle",
-            "target_polycount": polycount,
-        },
-        timeout=120.0,
-    )
-
-    if response.status_code not in (200, 201, 202):
-        return {"ok": False, "error": f"Meshy API error {response.status_code}: {response.text}"}
-
-    task_data = response.json()
-    task_id = task_data.get("result")
-    if not task_id:
-        return {"ok": False, "error": f"No task ID in Meshy response: {task_data}"}
-
-    # Poll for completion
-    try:
-        result = _poll_meshy_task(api_key, task_id)
-    except (RuntimeError, TimeoutError) as e:
-        return {"ok": False, "error": str(e), "task_id": task_id}
-
-    # Download GLB
-    model_urls = result.get("model_urls", {})
-    model_url = model_urls.get("glb") or model_urls.get("obj")
-    if not model_url:
-        return {"ok": False, "error": f"No model URL in result: {model_urls}"}
-
-    model_response = httpx.get(model_url, timeout=120.0)
-    model_response.raise_for_status()
-    with open(output_path, "wb") as f:
-        f.write(model_response.content)
-
-    # Download thumbnail
-    thumbnail_path = None
-    thumbnail_url = result.get("thumbnail_url")
-    if thumbnail_url:
-        thumbnail_path = output_path.rsplit(".", 1)[0] + "_thumbnail.png"
-        thumb_response = httpx.get(thumbnail_url, timeout=60.0)
-        if thumb_response.status_code == 200:
-            with open(thumbnail_path, "wb") as f:
-                f.write(thumb_response.content)
-
-    return {
-        "ok": True,
-        "model_path": output_path,
-        "thumbnail_path": thumbnail_path,
-        "task_id": task_id,
-        "polycount": polycount,
-    }
-
-
-@mcp.tool()
-def check_meshy_task(task_id: str) -> dict:
-    """
-    Check the status of a Meshy 3D generation task.
-    Useful if you started a task and want to check on it later.
-
-    Args:
-        task_id: The Meshy task ID returned by generate_3d_model
-    """
-    api_key = _get_key("MESHY_API_KEY")
-    headers = {"Authorization": f"Bearer {api_key}"}
-
-    response = httpx.get(
-        f"{MESHY_API_BASE}/{task_id}",
-        headers=headers,
-        timeout=30.0,
-    )
-    response.raise_for_status()
-    task = response.json()
-
-    return {
-        "ok": True,
-        "task_id": task_id,
-        "status": task.get("status"),
-        "progress": task.get("progress", 0),
-        "model_urls": task.get("model_urls"),
-        "thumbnail_url": task.get("thumbnail_url"),
-    }
 
 
 if __name__ == "__main__":
