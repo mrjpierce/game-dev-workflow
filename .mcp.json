@@ -11,6 +11,10 @@
     "game-bridge": {
       "command": "python",
       "args": ["tools/game-bridge-mcp/server.py"]
+    },
+    "media": {
+      "command": "python",
+      "args": ["tools/media-mcp/server.py"]
     }
   }
 }
